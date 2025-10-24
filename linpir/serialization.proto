@@ -33,7 +33,8 @@ message LinPirRequest {
 // A LinPIR response sent from the server to the client.
 message LinPirResponse {
   message EncryptedInnerProduct {
-    repeated rlwe.SerializedRnsRlweCiphertext ct_blocks = 1;
+    //repeated rlwe.SerializedRnsRlweCiphertext ct_blocks = 1;原有定义
+      repeated rlwe.SerializedRnsPolynomial ct_b_blocks = 1; // 新的定义
   }
 
   repeated EncryptedInnerProduct ct_inner_products = 1;

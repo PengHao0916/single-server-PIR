@@ -35,6 +35,8 @@ message HintlessPirServerPublicParams {
   // The PRNG seed for sampling the "a" polynomials in the Galois automorphism
   // key shared by all LinPIR instances.
   optional bytes prng_seed_linpir_gk_pad = 3;
+  //新增字段用于存放hint(a_parts)
+  repeated LinPirResponse linpir_response_hints = 4;
 }
 
 message HintlessPirRequest {

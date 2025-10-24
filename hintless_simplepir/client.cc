@@ -84,12 +84,13 @@ absl::StatusOr<std::unique_ptr<Client>> Client::Create(
       RlweRnsContext crt_context,
       RlweRnsContext::Create(rlwe_params.log_n, rlwe_params.ts, /*ps=*/{}, 2));
 
-  return absl::WrapUnique(
-      new Client(params, public_params.prng_seed_lwe_query_pad(),
+  return absl::WrapUnique(new Client(
+                 params, public_params, // 直接传递 public_params
                  std::move(rlwe_contexts), std::move(rlwe_moduli),
                  std::move(linpir_clients), std::move(crt_context)));
 }
 
+//创建LWE密钥s，以及用s加密过后的LWE密文
 absl::StatusOr<HintlessPirRequest> Client::GenerateRequest(int64_t index) {
   if (index < 0 || index >= params_.db_rows * params_.db_cols) {
     return absl::InvalidArgumentError("`index` out of range.");
@@ -268,7 +269,7 @@ absl::StatusOr<std::vector<lwe::Vector>> Client::RecoverLweDecryptionParts(
   for (int k = 0; k < num_linpir_plaintext_moduli; ++k) {
     RLWE_ASSIGN_OR_RETURN(
         auto hint_values_mod_tk,
-        linpir_clients_[k]->Recover(response.linpir_responses(k)));
+        linpir_clients_[k]->Recover(response.linpir_responses(k),linpir_response_pads_[k]));
     auto mod_params_tk = plaintext_moduli[k]->ModParams();
     for (int i = 0; i < num_shards; ++i) {
       hint_crt_values[i][k].reserve(hint_values_mod_tk[i].size());

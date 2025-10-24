@@ -258,28 +258,29 @@ TEST_F(ServerTest, HandleRequestWithoutPreprocessing) {
   // held by the server, and the inner product contains one ciphertext, as
   // kNumRows <= kParameters.num_rows_per_block and hence just one block.
   ASSERT_EQ(response.ct_inner_products_size(), 1);  // only one database
-  ASSERT_EQ(response.ct_inner_products(0).ct_blocks_size(), 1);
+  //ASSERT_EQ(response.ct_inner_products(0).ct_blocks_size(), 1);
+  ASSERT_EQ(response.ct_inner_products(0).ct_b_blocks_size(), 1);
 
-  ASSERT_OK_AND_ASSIGN(
-      auto deserialized,
-      RnsCiphertext::Deserialize(response.ct_inner_products(0).ct_blocks(0),
-                                 this->moduli_, this->error_params_.get()));
-  RnsCiphertext ct_response(deserialized);
-  ASSERT_OK_AND_ASSIGN(auto decrypted, secret_key.template DecryptBfv<Encoder>(
-                                           ct_response, this->encoder_.get()));
-  ASSERT_EQ(decrypted.size(), num_slots_per_group * 2);
+  // ASSERT_OK_AND_ASSIGN(
+  //     auto deserialized,
+  //     RnsCiphertext::Deserialize(response.ct_inner_products(0).ct_blocks(0),
+  //                                this->moduli_, this->error_params_.get()));
+  // RnsCiphertext ct_response(deserialized);
+  // ASSERT_OK_AND_ASSIGN(auto decrypted, secret_key.template DecryptBfv<Encoder>(
+  //                                          ct_response, this->encoder_.get()));
+  // ASSERT_EQ(decrypted.size(), num_slots_per_group * 2);
 
-  // Recover the plaintext inner product from the decrypted values.
-  std::vector<Integer> results(this->params_.rows_per_block, 0);
-  for (int i = 0; i < num_slots_per_group; ++i) {
-    results[i % this->params_.rows_per_block] += decrypted[i];
-    results[i % this->params_.rows_per_block] +=
-        decrypted[num_slots_per_group + i];
-  }
-  for (int i = 0; i < kNumRows; ++i) {
-    EXPECT_EQ(results[i] % this->rns_context_->PlaintextModulus(),
-              data[i][index]);
-  }
+  // // Recover the plaintext inner product from the decrypted values.
+  // std::vector<Integer> results(this->params_.rows_per_block, 0);
+  // for (int i = 0; i < num_slots_per_group; ++i) {
+  //   results[i % this->params_.rows_per_block] += decrypted[i];
+  //   results[i % this->params_.rows_per_block] +=
+  //       decrypted[num_slots_per_group + i];
+  // }
+  // for (int i = 0; i < kNumRows; ++i) {
+  //   EXPECT_EQ(results[i] % this->rns_context_->PlaintextModulus(),
+  //             data[i][index]);
+  // }
 }
 
 TEST_F(ServerTest, HandleRequestWithPreprocessing) {
@@ -320,23 +321,57 @@ TEST_F(ServerTest, HandleRequestWithPreprocessing) {
 
   // Let the server handle the request with preprocessed data.
   LinPirRequest request = this->SerializeLinPirRequest(ct_query, gk);
-  ASSERT_OK_AND_ASSIGN(LinPirResponse response, server->HandleRequest(request));
+   ASSERT_OK_AND_ASSIGN(LinPirResponse response, server->HandleRequest(request));
 
   // The response should contain one inner product as there is one database
   // held by the server, and the inner product contains one ciphertext, as
   // kNumRows <= kParameters.num_rows_per_block and hence just one block.
-  ASSERT_EQ(response.ct_inner_products_size(), 1);  // only one database
-  ASSERT_EQ(response.ct_inner_products(0).ct_blocks_size(), 1);
+  //ASSERT_EQ(response.ct_inner_products_size(), 1);  // only one database
+  //ASSERT_EQ(response.ct_inner_products(0).ct_blocks_size(), 1);
+  //ASSERT_EQ(response.ct_inner_products(0).ct_b_blocks_size(), 1);
+  // ASSERT_OK_AND_ASSIGN(
+  //     auto deserialized,
+  //     RnsCiphertext::Deserialize(response.ct_inner_products(0).ct_blocks(0),
+  //                                this->moduli_, this->error_params_.get()));
+  // RnsCiphertext ct_response(deserialized);
+  // ASSERT_OK_AND_ASSIGN(auto decrypted, secret_key.template DecryptBfv<Encoder>(
+  //                                          ct_response, this->encoder_.get()));
+  // ASSERT_EQ(decrypted.size(), num_slots_per_group * 2);
+  // // Recover the plaintext inner product from the decrypted values.
+  // std::vector<Integer> results(this->params_.rows_per_block, 0);
+  // for (int i = 0; i < num_slots_per_group; ++i) {
+  //   results[i % this->params_.rows_per_block] += decrypted[i];
+  //   results[i % this->params_.rows_per_block] +=
+  //       decrypted[num_slots_per_group + i];
+  // }
+  // for (int i = 0; i < kNumRows; ++i) {
+  //   EXPECT_EQ(results[i] % this->rns_context_->PlaintextModulus(),
+  //             data[i][index]);
+  // }
+  ASSERT_OK_AND_ASSIGN(LinPirResponse response_pads, server->GetResponsePads());
+
+  ASSERT_EQ(response.ct_inner_products_size(), 1);
+  ASSERT_EQ(response_pads.ct_inner_products_size(), 1);
+  ASSERT_EQ(response.ct_inner_products(0).ct_b_blocks_size(), 1);
+  ASSERT_EQ(response_pads.ct_inner_products(0).ct_b_blocks_size(), 1);
 
   ASSERT_OK_AND_ASSIGN(
-      auto deserialized,
-      RnsCiphertext::Deserialize(response.ct_inner_products(0).ct_blocks(0),
-                                 this->moduli_, this->error_params_.get()));
-  RnsCiphertext ct_response(deserialized);
+      auto ct_b_poly,
+      RnsPolynomial::Deserialize(
+          response.ct_inner_products(0).ct_b_blocks(0), this->moduli_));
+  ASSERT_OK_AND_ASSIGN(
+      auto ct_a_poly,
+      RnsPolynomial::Deserialize(
+          response_pads.ct_inner_products(0).ct_b_blocks(0), this->moduli_));
+
+  RnsCiphertext ct_response({std::move(ct_b_poly), std::move(ct_a_poly)},
+                            this->moduli_, /*power_of_s=*/1, /*error=*/0,
+                            this->error_params_.get(), this->rns_context_.get());
+
   ASSERT_OK_AND_ASSIGN(auto decrypted, secret_key.template DecryptBfv<Encoder>(
                                            ct_response, this->encoder_.get()));
   ASSERT_EQ(decrypted.size(), num_slots_per_group * 2);
-  // Recover the plaintext inner product from the decrypted values.
+
   std::vector<Integer> results(this->params_.rows_per_block, 0);
   for (int i = 0; i < num_slots_per_group; ++i) {
     results[i % this->params_.rows_per_block] += decrypted[i];

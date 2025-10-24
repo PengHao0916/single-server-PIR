@@ -100,6 +100,9 @@ class Server {
   absl::StatusOr<LinPirResponse> HandleRequest(const RnsCiphertext& ct_query,
                                                const RnsGaloisKey& gk) const;
 
+// Returns the "a" components of the LinPir response ciphertexts.
+  absl::StatusOr<LinPirResponse> GetResponsePads() const;
+
   // Accessors to the PRNG seeds for generating a LinPir request.
   absl::string_view PrngSeedForCiphertextRandomPads() const {
     return prng_seed_ct_pad_;

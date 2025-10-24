@@ -32,6 +32,7 @@
 #include "shell_encryption/montgomery.h"
 #include "shell_encryption/rns/rns_context.h"
 #include "shell_encryption/rns/rns_modulus.h"
+#include "linpir/serialization.pb.h" // 添加这一行
 
 namespace hintless_pir {
 namespace hintless_simplepir {
@@ -74,17 +75,23 @@ class Client {
   };
 
   explicit Client(
-      Parameters params, absl::string_view prng_seed_lwe_query_pad,
+      Parameters params, 
+      const HintlessPirServerPublicParams& public_params,
       std::vector<std::unique_ptr<const RlweRnsContext>> rlwe_contexts,
       std::vector<const RlwePrimeModulus*> rlwe_moduli,
       std::vector<std::unique_ptr<LinPirClient>> linpir_clients,
       RlweRnsContext crt_context)
       : params_(std::move(params)),
-        prng_seed_lwe_query_pad_(std::string(prng_seed_lwe_query_pad)),
+        prng_seed_lwe_query_pad_(
+                   std::string(public_params.prng_seed_lwe_query_pad())),
         rlwe_contexts_(std::move(rlwe_contexts)),
         rlwe_moduli_(std::move(rlwe_moduli)),
         linpir_clients_(std::move(linpir_clients)),
-        crt_context_(std::move(crt_context)) {}
+        crt_context_(std::move(crt_context)) {
+          linpir_response_pads_.assign(
+         public_params.linpir_response_hints().begin(),
+         public_params.linpir_response_hints().end());
+        }
 
   static std::vector<RlweInteger> EncodeLweVector(const lwe::Vector& lwe_vector,
                                                   RlweInteger lwe_modulus,
@@ -114,6 +121,9 @@ class Client {
 
   const RlweRnsContext crt_context_;
 
+  // The 'a' components of the LinPIR responses, received from the server's
+// public parameters.
+  std::vector<hintless_pir::LinPirResponse> linpir_response_pads_;
   // Per request state.
   ClientState state_;
 };

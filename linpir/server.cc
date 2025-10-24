@@ -197,7 +197,11 @@ absl::StatusOr<LinPirResponse> Server<RlweInteger>::HandleRequest(
     RLWE_ASSIGN_OR_RETURN(std::vector<RnsCiphertext> ct_blocks,
                           database->InnerProductWith(ct_rotated_queries));
     for (auto const& ct : ct_blocks) {
-      RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_blocks(), ct.Serialize());
+      //RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_blocks(), ct.Serialize());
+      //RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_b_blocks(), ct.Serialize());
+      RLWE_ASSIGN_OR_RETURN(RnsPolynomial ct_b, ct.Component(0));
+      RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_b_blocks(),
+                        ct_b.Serialize(rns_moduli_));
     }
     *response.add_ct_inner_products() = std::move(inner_product);
   }
@@ -254,14 +258,43 @@ absl::StatusOr<LinPirResponse> Server<RlweInteger>::HandleRequest(
         std::vector<RnsCiphertext> ct_blocks,
         database->InnerProductWithPreprocessedPads(ct_rotated_queries));
     LinPirResponse::EncryptedInnerProduct inner_product;
-    inner_product.mutable_ct_blocks()->Reserve(ct_blocks.size());
+    //inner_product.mutable_ct_blocks()->Reserve(ct_blocks.size());
+    inner_product.mutable_ct_b_blocks()->Reserve(ct_blocks.size());
     for (auto const& ct : ct_blocks) {
-      RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_blocks(), ct.Serialize());
+      //RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_blocks(), ct.Serialize());
+      //RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_b_blocks(), ct.Serialize());
+      RLWE_ASSIGN_OR_RETURN(RnsPolynomial ct_b, ct.Component(0));
+      RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_b_blocks(),
+                        ct_b.Serialize(rns_moduli_));
     }
     *response.add_ct_inner_products() = std::move(inner_product);
   }
   return response;
 }
+
+template <typename RlweInteger>
+absl::StatusOr<LinPirResponse> Server<RlweInteger>::GetResponsePads() const {
+  if (databases_.empty() || !databases_[0]->IsPreprocessed()) {
+    return absl::FailedPreconditionError(
+        "Server has not been preprocessed to get response pads.");
+  }
+
+  LinPirResponse response_pads;
+  response_pads.mutable_ct_inner_products()->Reserve(databases_.size());
+  for (auto const& database : databases_) {
+    LinPirResponse::EncryptedInnerProduct inner_product;
+    absl::Span<const RnsPolynomial> pad_inner_products =
+        database->GetPadInnerProducts();
+    inner_product.mutable_ct_b_blocks()->Reserve(pad_inner_products.size());
+    for (const auto& pad : pad_inner_products) {
+      RLWE_ASSIGN_OR_RETURN(*inner_product.add_ct_b_blocks(),
+                            pad.Serialize(rns_moduli_));
+    }
+    *response_pads.add_ct_inner_products() = std::move(inner_product);
+  }
+  return response_pads;
+}
+
 
 template class Server<Uint32>;
 template class Server<Uint64>;

@@ -244,7 +244,8 @@ TEST_F(ClientTest, RecoverFailsIfSecretKeyIsNotSet) {
   // `Recover` requires that the secret key is set (either via explicit
   // PRNG seed or by calling `EncryptQuery` beforehand).
   LinPirResponse response;
-  EXPECT_THAT(client->Recover(response),
+  LinPirResponse response_pads; // 创建一个空的 hint
+  EXPECT_THAT(client->Recover(response,response_pads),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Secret key not found")));
 }
@@ -284,12 +285,29 @@ TEST_F(ClientTest, RecoverSucceeds) {
                        secret_key.template EncryptBfv<Encoder>(
                            slots, this->encoder_.get(),
                            this->error_params_.get(), this->prng_.get()));
-  LinPirResponse::EncryptedInnerProduct inner_product;
-  ASSERT_OK_AND_ASSIGN(*inner_product.add_ct_blocks(), ct_block.Serialize());
-  LinPirResponse response;
-  *response.add_ct_inner_products() = std::move(inner_product);
+//   LinPirResponse::EncryptedInnerProduct inner_product;
+//   //ASSERT_OK_AND_ASSIGN(*inner_product.add_ct_blocks(), ct_block.Serialize());
+    //  LinPirResponse response;
+    // *response.add_ct_inner_products() = std::move(inner_product);
+// 模拟服务器行为：分离 a 和 b 部分
+// response_pads (hint) 包含 a 部分
+  LinPirResponse::EncryptedInnerProduct inner_product_pad;
+  ASSERT_OK_AND_ASSIGN(auto ct_a, ct_block.Component(1));
+  ASSERT_OK_AND_ASSIGN(*inner_product_pad.add_ct_b_blocks(),
+                      ct_a.Serialize(moduli_));
+  LinPirResponse response_pads;
+  *response_pads.add_ct_inner_products() = std::move(inner_product_pad);
+
+// response 包含 b 部分
+  LinPirResponse::EncryptedInnerProduct inner_product_b;
+  ASSERT_OK_AND_ASSIGN(auto ct_b, ct_block.Component(0));
+  ASSERT_OK_AND_ASSIGN(*inner_product_b.add_ct_b_blocks(),
+                      ct_b.Serialize(moduli_));
+LinPirResponse response;
+*response.add_ct_inner_products() = std::move(inner_product_b);
+// 客户端使用 hint 和 response 恢复数据
   ASSERT_OK_AND_ASSIGN(std::vector<std::vector<Integer>> results,
-                       client->Recover(response));
+                       client->Recover(response,response_pads));
   EXPECT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], expected);
 }

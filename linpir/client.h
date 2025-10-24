@@ -107,7 +107,7 @@ class Client {
 
   // Recovers the inner products from `response`, one per database matrix.
   absl::StatusOr<std::vector<std::vector<RlweInteger>>> Recover(
-      const LinPirResponse& response);
+      const LinPirResponse& response, const LinPirResponse& response_pads);
 
   absl::string_view PrngSeedForCiphertextRandomPads() const {
     return prng_seed_ct_pad_;

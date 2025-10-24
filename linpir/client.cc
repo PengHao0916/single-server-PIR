@@ -209,27 +209,48 @@ Client<RlweInteger>::GenerateGaloisKey() const {
 
 template <typename RlweInteger>
 absl::StatusOr<std::vector<std::vector<RlweInteger>>>
-Client<RlweInteger>::Recover(const LinPirResponse& response) {
+Client<RlweInteger>::Recover(const LinPirResponse& response,
+                             const LinPirResponse& response_pads) {
   if (secret_key_ == nullptr) {
     return absl::InvalidArgumentError("Secret key not found.");
   }
+  if (response.ct_inner_products_size() !=
+      response_pads.ct_inner_products_size()) {
+    return absl::InvalidArgumentError(
+        "`response` and `response_pads` have mismatching number of inner "
+        "products.");
+  }
 
   RlweInteger plaintext_modulus = rns_context_->PlaintextModulus();
-
   std::vector<std::vector<RlweInteger>> results(
       response.ct_inner_products_size());
+
   for (int i = 0; i < response.ct_inner_products_size(); ++i) {
     const auto& ct_inner_products = response.ct_inner_products(i);
+    const auto& pad_inner_products = response_pads.ct_inner_products(i);
+    if (ct_inner_products.ct_b_blocks_size() !=
+        pad_inner_products.ct_b_blocks_size()) {
+      return absl::InvalidArgumentError(
+          "`response` and `response_pads` have mismatching number of blocks.");
+    }
+
     int num_slots_per_group = 1 << (params_.log_n - 1);
-    int num_blocks = ct_inner_products.ct_blocks_size();
+    int num_blocks = ct_inner_products.ct_b_blocks_size();
     results[i].reserve(num_blocks * params_.rows_per_block);
 
     for (int j = 0; j < num_blocks; ++j) {
+      // Reconstruct the ciphertext from the 'a' part (pad) and 'b' part.
       RLWE_ASSIGN_OR_RETURN(
-          auto ct_deserialized,
-          RnsCiphertext::Deserialize(ct_inner_products.ct_blocks(j),
-                                     rns_moduli_, &rns_error_params_));
-      RnsCiphertext ct_block(std::move(ct_deserialized));
+          auto ct_b, RnsPolynomial::Deserialize(
+                         ct_inner_products.ct_b_blocks(j), rns_moduli_));
+      RLWE_ASSIGN_OR_RETURN(
+          auto ct_a, RnsPolynomial::Deserialize(
+                         pad_inner_products.ct_b_blocks(j), rns_moduli_));
+
+      RnsCiphertext ct_block({std::move(ct_b), std::move(ct_a)}, rns_moduli_,
+                             /*power_of_s=*/1, /*error=*/0, &rns_error_params_,
+                             rns_context_);
+
       RLWE_ASSIGN_OR_RETURN(
           auto slots,
           secret_key_->template DecryptBfv<Encoder>(ct_block, &encoder_));
@@ -253,6 +274,7 @@ Client<RlweInteger>::Recover(const LinPirResponse& response) {
 
   return results;
 }
+
 
 template class Client<Uint32>;
 template class Client<Uint64>;

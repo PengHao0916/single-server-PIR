@@ -70,6 +70,9 @@ class Database {
   int NumBlocks() const { return diagonals_.size(); }
   int NumDiagonalsPerBlock() const { return diagonals_[0].size(); }
   bool IsPreprocessed() const { return !pad_inner_products_.empty(); }
+  absl::Span<const RnsPolynomial> GetPadInnerProducts() const {
+    return pad_inner_products_;
+  }
 
  private:
   explicit Database(const RnsContext* rns_context,

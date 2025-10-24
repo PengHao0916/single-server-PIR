@@ -37,10 +37,10 @@ const Parameters kParameters{
     .db_rows = 1024,
     .db_cols = 1024,
     .db_record_bit_size = 8,
-    .lwe_secret_dim = 1400,
+    .lwe_secret_dim = 1024,
     .lwe_modulus_bit_size = 32,
     .lwe_plaintext_bit_size = 8,
-    .lwe_error_variance = 8,
+    .lwe_error_variance = 6.4,
     .prng_type = rlwe::PRNG_TYPE_HKDF,
 };
 

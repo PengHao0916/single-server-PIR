@@ -216,7 +216,14 @@ absl::Status Server::Preprocess() {
     linpir_databases_[k] = std::move(linpir_databases_mod_tk);
     linpir_servers_[k] = std::move(linpir_server_mod_tk);
   }
-
+// Get the response pads (hints) from all LinPIR servers.
+  linpir_response_pads_.clear();
+  linpir_response_pads_.reserve(linpir_servers_.size());
+  for (int k = 0; k < linpir_servers_.size(); ++k) {
+  RLWE_ASSIGN_OR_RETURN(auto response_pads,
+                        linpir_servers_[k]->GetResponsePads());
+  linpir_response_pads_.push_back(std::move(response_pads));
+}
   return absl::OkStatus();
 }
 
@@ -259,6 +266,10 @@ HintlessPirServerPublicParams Server::GetPublicParams() const {
     *output.add_prng_seed_linpir_ct_pads() = prng_seed;
   }
   output.set_prng_seed_linpir_gk_pad(prng_seed_linpir_gk_pad_);
+  // Add the LinPIR response pads (hints) to the public params.
+   for (const auto& pads : linpir_response_pads_) {
+  *output.add_linpir_response_hints() = pads;
+}
   return output;
 }
 

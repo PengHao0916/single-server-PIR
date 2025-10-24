@@ -99,6 +99,8 @@ class Server {
 
   std::vector<std::vector<std::unique_ptr<LinPirDatabase>>> linpir_databases_;
   std::vector<std::unique_ptr<LinPirServer>> linpir_servers_;
+  // Precomputed 'a' components of the LinPIR responses, serving as the hint.
+  std::vector<hintless_pir::LinPirResponse> linpir_response_pads_;
 };
 
 }  // namespace hintless_simplepir
