@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+#include <iostream>
+#include <iomanip>
 #include <memory>
 #include <string>
 
@@ -33,7 +34,7 @@ using RlweInteger = Parameters::RlweInteger;
 const Parameters kParameters{
     .db_rows = 8,
     .db_cols = 8,
-    .db_record_bit_size = 16,
+    .db_record_bit_size = 64,
     .lwe_secret_dim = 1400,
     .lwe_modulus_bit_size = 32,
     .lwe_plaintext_bit_size = 8,
@@ -70,6 +71,16 @@ TEST(HintlessSimplePir, EndToEndTest) {
 
   const Database* database = server->GetDatabase();
   ASSERT_OK_AND_ASSIGN(auto expected, database->Record(1));
+  std::cout << "\n[DEBUG-2] Verifying test comparison:" << std::endl;
+  auto print_hex = [](const std::string& s, const char* title) {
+  std::cout << "  " << title << " (hex): ";
+  for (unsigned char c : s) {
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)c;
+  }
+  std::cout << std::dec << std::endl;
+};
+  print_hex(record,   "Recovered 'record'");
+  print_hex(expected, "Expected 'record'");
   EXPECT_EQ(record, expected);
 }
 

@@ -246,73 +246,19 @@ absl::StatusOr<HintlessPirResponse> Server::HandleRequest(
     *response.add_ct_records() = SerializeLweCiphertext(ct_record);
   }
 
-  // // Handle the LinPIR requests.
-  // int num_linpir_requests = request.linpir_ct_bs_size();
-  // if (num_linpir_requests != linpir_servers_.size()) {
-  //   return absl::InvalidArgumentError(
-  //       "`request` contains unexpected number of LinPir requests.");
-  // }
-  // response.mutable_linpir_responses()->Reserve(num_linpir_requests);
-  
-  // for (int k = 0; k < num_linpir_requests; ++k) {
-  //   RLWE_ASSIGN_OR_RETURN(LinPirResponse linpir_response,
-  //                         linpir_servers_[k]->HandleRequest(
-  //                             request.linpir_ct_bs(k), request.linpir_gk_bs()));
-  //   *response.add_linpir_responses() = std::move(linpir_response);
-  // }
-  // Handle the LinPIR requests using parallel execution.
-int num_linpir_requests = request.linpir_ct_bs_size();
-if (num_linpir_requests != linpir_servers_.size()) {
-  return absl::InvalidArgumentError(
-      "`request` contains unexpected number of LinPir requests.");
-}
-
-std::vector<std::future<absl::StatusOr<LinPirResponse>>> futures;
-futures.reserve(num_linpir_requests);
-
-for (int k = 0; k < num_linpir_requests; ++k) {
-  // 使用 std::async 启动异步任务
-  // std::launch::async 策略确保在新线程中执行（如果系统资源允许）
-  futures.emplace_back(std::async(std::launch::async,
-                                  [this, &request, k]() {
-                                    // 注意：lambda 捕获 this 以访问成员 linpir_servers_
-                                    // 捕获 request 的引用，捕获 k 的值
-                                    return linpir_servers_[k]->HandleRequest(
-                                        request.linpir_ct_bs(k), request.linpir_gk_bs());
-                                  }));
-}
-
-// 等待所有异步任务完成并收集结果
-// 预先调整 response 中 linpir_responses 的大小
-response.mutable_linpir_responses()->Reserve(num_linpir_requests);
-for (int k = 0; k < num_linpir_requests; ++k) {
-  try {
-    // 获取结果，如果任务中发生异常，这里会重新抛出
-    absl::StatusOr<LinPirResponse> status_or_response = futures[k].get();
-    // 检查 StatusOr 是否包含错误
-    if (!status_or_response.ok()) {
-      // 如果 LinPirServer::HandleRequest 返回错误，将其传播出去
-      return status_or_response.status();
-    }
-    // 添加结果到 response
-    *response.add_linpir_responses() = std::move(status_or_response.value());
-  } catch (const std::exception& e) {
-    // 捕获 std::async 可能抛出的其他异常 (理论上 StatusOr 应该覆盖了业务逻辑错误)
-    return absl::InternalError(absl::StrCat(
-        "Exception caught while processing LinPIR request for instance ", k,
-        ": ", e.what()));
-  } catch (...) {
-    // 捕获未知异常
-     return absl::InternalError(absl::StrCat(
-        "Unknown exception caught while processing LinPIR request for instance ", k));
+  // Handle the LinPIR requests.
+  int num_linpir_requests = request.linpir_ct_bs_size();
+  if (num_linpir_requests != linpir_servers_.size()) {
+    return absl::InvalidArgumentError(
+        "`request` contains unexpected number of LinPir requests.");
   }
-}
-// 确保所有 LinPirResponse 都已添加
-if (response.linpir_responses_size() != num_linpir_requests) {
-    // 如果数量不匹配，说明有任务失败但未正确返回错误状态，这是一个内部错误
-    return absl::InternalError("Mismatch in the number of gathered LinPIR responses.");
-}
-
+  
+  for (int k = 0; k < num_linpir_requests; ++k) {
+    RLWE_ASSIGN_OR_RETURN(LinPirResponse linpir_response,
+                          linpir_servers_[k]->HandleRequest(
+                              request.linpir_ct_bs(k), request.linpir_gk_bs()));
+    *response.add_linpir_responses() = std::move(linpir_response);
+  }
   return response;
 }
 

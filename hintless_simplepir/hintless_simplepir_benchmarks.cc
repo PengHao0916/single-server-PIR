@@ -40,18 +40,18 @@ using RlweInteger = Parameters::RlweInteger;
 const Parameters kParameters{
     .db_rows = 1024,
     .db_cols = 1024,
-    .db_record_bit_size = 64,
+    .db_record_bit_size =64,
     .lwe_secret_dim = 1024,
     .lwe_modulus_bit_size = 32,
     .lwe_plaintext_bit_size = 8,
-    .lwe_error_variance = 6.4,
+    .lwe_error_variance = 8,
     .linpir_params =
         linpir::RlweParameters<RlweInteger>{
             .log_n = 12,
             .qs = {35184371884033ULL, 35184371703809ULL},  // 90 bits
             .ts = {2056193, 1990657},                      // 42 bits
             .gadget_log_bs = {16, 16},
-            .error_variance = 6.4,
+            .error_variance = 8,
             .prng_type = rlwe::PRNG_TYPE_HKDF,
             .rows_per_block = 1024,
         },
@@ -78,9 +78,17 @@ void BM_HintlessPirRlwe64(benchmark::State& state) {
   auto client = Client::Create(params, public_params).value();
   auto request = client->GenerateRequest(1).value();
 
-  //打印query和response size
   if (state.thread_index() == 0) {
     auto response_for_size_measure = server->HandleRequest(request).value();
+    size_t lwe_response_size = 0;
+    for (const auto& record : response_for_size_measure.ct_records()) {
+      lwe_response_size += record.ByteSizeLong();
+    }
+
+    size_t rlwe_response_size = 0;
+    for (const auto& resp : response_for_size_measure.linpir_responses()) {
+      rlwe_response_size += resp.ByteSizeLong();
+    }
     std::cout << "----------------------------------------\n";
     std::cout << "Communication Sizes (KB)\n";
     std::cout << "Database Dimensions: " << num_rows << " x " << num_cols << "\n";
@@ -89,8 +97,12 @@ void BM_HintlessPirRlwe64(benchmark::State& state) {
               << public_params.ByteSizeLong() / 1024.0 << " KB\n";
     std::cout << "Query Size (Online):       "
               << request.ByteSizeLong() / 1024.0 << " KB\n";
-    std::cout << "Response Size (Online):    "
-              << response_for_size_measure.ByteSizeLong() / 1024.0 << " KB\n";
+    std::cout << "Response Size (LWE part):  "
+              << lwe_response_size / 1024.0 << " KB\n"; 
+    std::cout << "Response Size (RLWE part): "
+              << rlwe_response_size / 1024.0 << " KB\n"; 
+    std::cout << "Response Size (Total):     "
+              << response_for_size_measure.ByteSizeLong() / 1024.0 << " KB\n"; //           
     std::cout << "----------------------------------------\n";
   }
 
